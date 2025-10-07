@@ -1,13 +1,104 @@
-import React from 'react';
-import { StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useRouter } from 'expo-router';
+
+function startOfMonth(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function getMonthMatrix(date: Date) {
+    const start = startOfMonth(date);
+    const end = endOfMonth(date);
+    const matrix: (Date | null)[] = [];
+
+    const startDay = start.getDay();
+    // JS: Sunday=0 .. Saturday=6; we want week to start on Monday maybe, but keep Sunday start for simplicity
+    for (let i = 0; i < startDay; i++) matrix.push(null);
+
+    for (let d = 1; d <= end.getDate(); d++) {
+        matrix.push(new Date(date.getFullYear(), date.getMonth(), d));
+    }
+
+    // pad to full weeks (7 columns)
+    while (matrix.length % 7 !== 0) matrix.push(null);
+    return matrix;
+}
 
 export default function TakvimScreen() {
+    const router = useRouter();
+    const [viewDate, setViewDate] = useState(() => new Date());
+
+    const monthMatrix = useMemo(() => getMonthMatrix(viewDate), [viewDate]);
+
+    function prevMonth() {
+        setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    }
+
+    function nextMonth() {
+        setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+    }
+
+    function openDay(date: Date) {
+        const iso = date.toISOString().slice(0, 10); // YYYY-MM-DD
+        // navigate to gun-detay and pass date param
+        router.push({ pathname: '/(tabs)/gun-detay', params: { date: iso } });
+    }
+
+    const weekDays = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+
+    // chunk matrix into weeks
+    const weeks: (Date | null)[][] = [];
+    for (let i = 0; i < monthMatrix.length; i += 7) {
+        weeks.push(monthMatrix.slice(i, i + 7));
+    }
+
     return (
         <ThemedView style={styles.container}>
-            <ThemedText type="title">Takvim</ThemedText>
-            <ThemedText>Burada ileride namaz takvimi gösterilecek.</ThemedText>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={prevMonth} style={styles.headerButton}>
+                    <ThemedText>{'<'}</ThemedText>
+                </TouchableOpacity>
+                <ThemedText type="title">{viewDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' })}</ThemedText>
+                <TouchableOpacity onPress={nextMonth} style={styles.headerButton}>
+                    <ThemedText>{'>'}</ThemedText>
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.weekRow}>
+                {weekDays.map(w => (
+                    <View key={w} style={styles.weekCell}>
+                        <ThemedText type="defaultSemiBold">{w}</ThemedText>
+                    </View>
+                ))}
+            </View>
+
+            <View style={styles.weeksContainer}>
+                {weeks.map((week, wi) => (
+                    <View key={wi} style={styles.weekRowInner}>
+                        {week.map((item, di) => {
+                            const isToday = item
+                                ? item.toDateString() === new Date().toDateString()
+                                : false;
+                            return (
+                                <TouchableOpacity
+                                    key={di}
+                                    style={[styles.dayCell, isToday ? styles.today : undefined]}
+                                    disabled={!item}
+                                    onPress={() => item && openDay(item)}
+                                >
+                                    <ThemedText>{item ? String(item.getDate()) : ''}</ThemedText>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                ))}
+            </View>
         </ThemedView>
     );
 }
@@ -17,5 +108,39 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 16,
         gap: 8,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    headerButton: {
+        padding: 8,
+    },
+    weekRow: {
+        flexDirection: 'row',
+        marginTop: 12,
+    },
+    weekCell: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    dayCell: {
+        flex: 1,
+        aspectRatio: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    weeksContainer: {
+        marginTop: 8,
+    },
+    weekRowInner: {
+        flexDirection: 'row',
+    },
+    today: {
+        borderWidth: 1,
+        borderColor: '#007AFF',
+        borderRadius: 8,
+        backgroundColor: 'rgba(0,122,255,0.08)'
     },
 });

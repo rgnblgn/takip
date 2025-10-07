@@ -1,7 +1,9 @@
 import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { Slot } from 'expo-router';
-import { View, Text } from 'react-native';
+// no direct react-native primitives needed here
+import TakvimScreen from './takvim';
+import GunDetayScreen from './gun-detay';
+import ProfilScreen from './profil';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
@@ -30,9 +32,9 @@ export default function TopTabLayout() {
         },
         headerShown: false,
       })}>
-      <TopTabs.Screen name="takvim" options={{ title: 'Takvim' }} component={() => <Slot />} />
-      <TopTabs.Screen name="gun-detay" options={{ title: 'Gün Detay' }} component={() => <Slot />} />
-      <TopTabs.Screen name="profil" options={{ title: 'Profil' }} component={() => <Slot />} />
+      <TopTabs.Screen name="takvim" options={{ title: 'Takvim' }} component={TakvimScreen} />
+      <TopTabs.Screen name="gun-detay" options={{ title: 'Gün Detay' }} component={GunDetayScreen} />
+      <TopTabs.Screen name="profil" options={{ title: 'Profil' }} component={ProfilScreen} />
     </TopTabs.Navigator>
   );
 }
