@@ -45,9 +45,13 @@ export default function TakvimScreen() {
     }
 
     function openDay(date: Date) {
-        const iso = date.toISOString().slice(0, 10); // YYYY-MM-DD
-        // navigate to gun-detay and pass date param
-        router.push({ pathname: '/(tabs)/gun-detay', params: { date: iso } });
+        // Build YYYY-MM-DD from local date components to avoid timezone shift
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const iso = `${y}-${m}-${d}`;
+        // navigate to gun-detay and pass date param as query
+        router.push(`/gun-detay?date=${iso}`);
     }
 
     const weekDays = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
