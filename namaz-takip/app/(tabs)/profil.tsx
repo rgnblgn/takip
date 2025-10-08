@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, TextInput, View, TouchableOpacity, Modal } from 'react-native';
+import { StyleSheet, TextInput, View, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
@@ -17,10 +18,12 @@ function parseYMD(s?: string) {
 }
 
 export default function ProfilScreen() {
+    const router = useRouter();
     const [mukellefSince, setMukellefSince] = useState('');
     const [startedPrayerAt, setStartedPrayerAt] = useState('');
     const [showPickerFor, setShowPickerFor] = useState<null | 'mukellef' | 'started'>(null);
     const [pickerViewDate, setPickerViewDate] = useState(() => new Date());
+    const [showYearPicker, setShowYearPicker] = useState(false);
 
     function formatDateYMD(d: Date) {
         const y = d.getFullYear();
@@ -42,6 +45,15 @@ export default function ProfilScreen() {
         <ThemedView style={styles.container}>
             <ThemedText type="title">Profil</ThemedText>
 
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={() => router.push('/login')} style={{ padding: 8, backgroundColor: '#007AFF', borderRadius: 6 }}>
+                    <ThemedText style={{ color: '#fff' }}>Giriş Yap</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push('/signup')} style={{ padding: 8, backgroundColor: '#34C759', borderRadius: 6 }}>
+                    <ThemedText style={{ color: '#fff' }}>Kayıt Ol</ThemedText>
+                </TouchableOpacity>
+            </View>
+
             <ThemedText>Bu mükellef olduğun gün</ThemedText>
             <TouchableOpacity onPress={() => { setPickerViewDate(mukellefSince ? new Date(mukellefSince) : new Date()); setShowPickerFor('mukellef'); }}>
                 <TextInput value={mukellefSince} editable={false} placeholder="2025-09-13" style={styles.input} />
@@ -56,19 +68,38 @@ export default function ProfilScreen() {
                 <View style={styles.modalBackdrop}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setPickerViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}><ThemedText>{'<'}</ThemedText></TouchableOpacity>
-                            <ThemedText type="title">{pickerViewDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' })}</ThemedText>
-                            <TouchableOpacity onPress={() => setPickerViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}><ThemedText>{'>'}</ThemedText></TouchableOpacity>
+                            <TouchableOpacity onPress={() => { setShowYearPicker(false); setPickerViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1)); }}><ThemedText>{'<'}</ThemedText></TouchableOpacity>
+                            <TouchableOpacity onPress={() => setShowYearPicker(s => !s)}>
+                                <ThemedText type="title">{pickerViewDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' })}</ThemedText>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => { setShowYearPicker(false); setPickerViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1)); }}><ThemedText>{'>'}</ThemedText></TouchableOpacity>
                         </View>
-                        <CalendarGrid
-                            viewDate={pickerViewDate}
-                            onSelect={(d: Date) => {
-                                const formatted = formatDateYMD(d);
-                                if (showPickerFor === 'mukellef') setMukellefSince(formatted);
-                                if (showPickerFor === 'started') setStartedPrayerAt(formatted);
-                                setShowPickerFor(null);
-                            }}
-                        />
+                        {showYearPicker ? (
+                            <View style={{ maxHeight: 240 }}>
+                                <ScrollView>
+                                    {(() => {
+                                        const years: number[] = [];
+                                        const current = new Date().getFullYear();
+                                        for (let y = 1900; y <= current; y++) years.push(y);
+                                        return years.reverse().map(y => (
+                                            <TouchableOpacity key={y} onPress={() => { setPickerViewDate(d => new Date(y, d.getMonth(), 1)); setShowYearPicker(false); }} style={{ padding: 8 }}>
+                                                <ThemedText>{String(y)}</ThemedText>
+                                            </TouchableOpacity>
+                                        ));
+                                    })()}
+                                </ScrollView>
+                            </View>
+                        ) : (
+                            <CalendarGrid
+                                viewDate={pickerViewDate}
+                                onSelect={(d: Date) => {
+                                    const formatted = formatDateYMD(d);
+                                    if (showPickerFor === 'mukellef') setMukellefSince(formatted);
+                                    if (showPickerFor === 'started') setStartedPrayerAt(formatted);
+                                    setShowPickerFor(null);
+                                }}
+                            />
+                        )}
                         <TouchableOpacity onPress={() => setShowPickerFor(null)} style={{ marginTop: 12 }}><ThemedText>İptal</ThemedText></TouchableOpacity>
                     </View>
                 </View>

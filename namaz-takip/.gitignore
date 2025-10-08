@@ -4,3 +4,8 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+backend/node_modules/
+backend/.expo/
+backend/.expo-shared/
+backend/.env

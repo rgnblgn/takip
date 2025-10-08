@@ -28,6 +28,9 @@ android/.idea/
 .expo/
 .expo-shared/
 
+.namaz-takip/backend/.env
+.namaz-takip/app/.env
+
 # Editor directories and files
 .vscode/
 .idea/
