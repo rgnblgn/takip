@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { validateCredentials } from './utils/auth';
+import { validateCredentials, saveToken } from './utils/auth';
 import { useRouter } from 'expo-router';
 
 export default function Login() {
@@ -16,6 +16,10 @@ export default function Login() {
         try {
             const res = await fetch('http://localhost:4000/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
             if (!res.ok) throw new Error('invalid');
+            const data = await res.json();
+            if (data && data.token) {
+                await saveToken(data.token);
+            }
             // also save locally for offline
             await (await import('./utils/auth')).saveCredentials(email, password);
             router.replace('/');

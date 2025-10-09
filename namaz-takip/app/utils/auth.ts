@@ -9,7 +9,8 @@ try {
 }
 
 const STORAGE_KEY = 'namaz-takip-auth';
-let inMemory: { email?: string; password?: string } = {};
+const TOKEN_KEY = 'namaz-takip-token';
+let inMemory: { email?: string; password?: string; token?: string } = {};
 
 export async function saveCredentials(email: string, password: string) {
     if (SecureStore && SecureStore.setItemAsync) {
@@ -34,4 +35,29 @@ export async function validateCredentials(email: string, password: string) {
     const stored = await getStoredCredentials();
     if (!stored) return false;
     return stored.email === email && stored.password === password;
+}
+
+// token helpers
+export async function saveToken(token: string) {
+    if (SecureStore && SecureStore.setItemAsync) {
+        await SecureStore.setItemAsync(TOKEN_KEY, token);
+    } else {
+        inMemory.token = token;
+    }
+}
+
+export async function getToken(): Promise<string | null> {
+    if (SecureStore && SecureStore.getItemAsync) {
+        const t = await SecureStore.getItemAsync(TOKEN_KEY);
+        return t || null;
+    } else {
+        return inMemory.token || null;
+    }
+}
+
+export async function clearToken() {
+    if (SecureStore && SecureStore.deleteItemAsync) {
+        await SecureStore.deleteItemAsync(TOKEN_KEY);
+    }
+    inMemory.token = undefined;
 }

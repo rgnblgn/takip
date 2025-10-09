@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, TextInput, View, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { getToken } from '../utils/auth';
 
 function parseYMD(s?: string) {
     if (!s) return null;
@@ -34,6 +35,28 @@ export default function ProfilScreen() {
 
     const startDate = useMemo(() => parseYMD(mukellefSince), [mukellefSince]);
     const startedDate = useMemo(() => parseYMD(startedPrayerAt), [startedPrayerAt]);
+
+    useEffect(() => {
+        let mounted = true;
+        async function loadProfile() {
+            const token = await getToken();
+            if (!token) return;
+            try {
+                const res = await fetch('http://localhost:4000/api/profile', { headers: { Authorization: `Bearer ${token}` } });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!mounted) return;
+                if (data && data.profile) {
+                    if (data.profile.mukellefSince) setMukellefSince(data.profile.mukellefSince);
+                    if (data.profile.startedPrayerAt) setStartedPrayerAt(data.profile.startedPrayerAt);
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+        loadProfile();
+        return () => { mounted = false; };
+    }, []);
 
     let daysDiff: number | null = null;
     if (startDate && startedDate) {
@@ -104,6 +127,18 @@ export default function ProfilScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <TouchableOpacity onPress={async () => {
+                // save to backend if token
+                const token = await getToken();
+                if (token) {
+                    try {
+                        await fetch('http://localhost:4000/api/profile', { method: 'PUT', headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ mukellefSince, startedPrayerAt }) });
+                    } catch (e) { /* ignore */ }
+                }
+            }} style={{ marginTop: 12, padding: 10, backgroundColor: '#007AFF', borderRadius: 6, alignItems: 'center' }}>
+                <ThemedText style={{ color: '#fff' }}>Kaydet</ThemedText>
+            </TouchableOpacity>
 
             <View style={styles.result}>
                 {daysDiff === null ? (

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { saveCredentials } from './utils/auth';
+import { saveCredentials, saveToken } from './utils/auth';
 import { useRouter } from 'expo-router';
 
 export default function Signup() {
@@ -16,6 +16,10 @@ export default function Signup() {
         try {
             const res = await fetch('http://localhost:4000/api/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
             if (!res.ok) throw new Error('api');
+            const data = await res.json();
+            if (data && data.token) {
+                await saveToken(data.token);
+            }
             // save locally too
             await saveCredentials(email, password);
             router.replace('/');

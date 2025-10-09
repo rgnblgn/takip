@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const User = require('./models/user');
 
@@ -16,15 +17,36 @@ app.use(morgan('dev'));
 const MONGO = process.env.MONGO_URI || 'mongodb://localhost:27017/namaz-takip';
 mongoose.connect(MONGO).then(() => console.log('Mongo connected')).catch(e => console.error(e));
 
+function makeToken() {
+    return crypto.randomBytes(24).toString('hex');
+}
+
+async function authMiddleware(req, res, next) {
+    const auth = req.headers['authorization'];
+    if (!auth) return res.status(401).json({ message: 'no auth header' });
+    const parts = auth.split(' ');
+    const token = parts.length === 2 ? parts[1] : parts[0];
+    try {
+        const user = await User.findOne({ token });
+        if (!user) return res.status(401).json({ message: 'invalid token' });
+        req.user = user;
+        next();
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ message: 'server error' });
+    }
+}
+
 app.post('/api/signup', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'email and password required' });
     try {
         const existing = await User.findOne({ email });
         if (existing) return res.status(409).json({ message: 'user exists' });
-        const user = new User({ email, password });
+        const token = makeToken();
+        const user = new User({ email, password, token });
         await user.save();
-        return res.json({ ok: true });
+        return res.json({ ok: true, token });
     } catch (e) {
         console.error(e);
         return res.status(500).json({ message: 'server error' });
@@ -39,6 +61,33 @@ app.post('/api/login', async (req, res) => {
         if (!user) return res.status(401).json({ message: 'invalid credentials' });
         const ok = await user.comparePassword(password);
         if (!ok) return res.status(401).json({ message: 'invalid credentials' });
+        const token = makeToken();
+        user.token = token;
+        await user.save();
+        return res.json({ ok: true, token });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ message: 'server error' });
+    }
+});
+
+app.get('/api/profile', authMiddleware, async (req, res) => {
+    try {
+        const user = req.user;
+        return res.json({ ok: true, profile: { mukellefSince: user.mukellefSince || null, startedPrayerAt: user.startedPrayerAt || null } });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ message: 'server error' });
+    }
+});
+
+app.put('/api/profile', authMiddleware, async (req, res) => {
+    try {
+        const { mukellefSince, startedPrayerAt } = req.body;
+        const user = req.user;
+        if (mukellefSince !== undefined) user.mukellefSince = mukellefSince;
+        if (startedPrayerAt !== undefined) user.startedPrayerAt = startedPrayerAt;
+        await user.save();
         return res.json({ ok: true });
     } catch (e) {
         console.error(e);
