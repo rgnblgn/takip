@@ -7,6 +7,13 @@ const schema = new mongoose.Schema({
     token: { type: String },
     mukellefSince: { type: String },
     startedPrayerAt: { type: String },
+    kazaTotals: {
+        sabah: { type: Number, default: 0 },
+        ogle: { type: Number, default: 0 },
+        ikindi: { type: Number, default: 0 },
+        aksam: { type: Number, default: 0 },
+        yatsi: { type: Number, default: 0 },
+    },
 }, { timestamps: true });
 
 schema.pre('save', async function (next) {

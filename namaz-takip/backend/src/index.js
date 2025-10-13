@@ -74,7 +74,7 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/profile', authMiddleware, async (req, res) => {
     try {
         const user = req.user;
-        return res.json({ ok: true, profile: { mukellefSince: user.mukellefSince || null, startedPrayerAt: user.startedPrayerAt || null } });
+        return res.json({ ok: true, profile: { mukellefSince: user.mukellefSince || null, startedPrayerAt: user.startedPrayerAt || null, kazaTotals: user.kazaTotals || { sabah: 0, ogle: 0, ikindi: 0, aksam: 0, yatsi: 0 } } });
     } catch (e) {
         console.error(e);
         return res.status(500).json({ message: 'server error' });
@@ -89,6 +89,26 @@ app.put('/api/profile', authMiddleware, async (req, res) => {
         if (startedPrayerAt !== undefined) user.startedPrayerAt = startedPrayerAt;
         await user.save();
         return res.json({ ok: true });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ message: 'server error' });
+    }
+});
+
+// Record kaza counts (increments aggregated totals)
+app.post('/api/kaza', authMiddleware, async (req, res) => {
+    try {
+        const { sabah = 0, ogle = 0, ikindi = 0, aksam = 0, yatsi = 0, note } = req.body;
+        const user = req.user;
+        user.kazaTotals = user.kazaTotals || { sabah: 0, ogle: 0, ikindi: 0, aksam: 0, yatsi: 0 };
+        user.kazaTotals.sabah = (user.kazaTotals.sabah || 0) + Number(sabah);
+        user.kazaTotals.ogle = (user.kazaTotals.ogle || 0) + Number(ogle);
+        user.kazaTotals.ikindi = (user.kazaTotals.ikindi || 0) + Number(ikindi);
+        user.kazaTotals.aksam = (user.kazaTotals.aksam || 0) + Number(aksam);
+        user.kazaTotals.yatsi = (user.kazaTotals.yatsi || 0) + Number(yatsi);
+        await user.save();
+        // for now we don't persist individual records, just aggregated totals
+        return res.json({ ok: true, kazaTotals: user.kazaTotals });
     } catch (e) {
         console.error(e);
         return res.status(500).json({ message: 'server error' });
