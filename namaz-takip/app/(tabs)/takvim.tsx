@@ -31,6 +31,8 @@ function getMonthMatrix(date: Date) {
 }
 
 export default function TakvimScreen() {
+    // Her gün hücresinin boyutunu dinamik almak için
+    const [cellSize, setCellSize] = useState(0);
     const router = useRouter();
     const [viewDate, setViewDate] = useState(() => new Date());
     const [logsByDate, setLogsByDate] = useState<Record<string, any>>({});
@@ -92,11 +94,15 @@ export default function TakvimScreen() {
     const monthMatrix = useMemo(() => getMonthMatrix(viewDate), [viewDate]);
 
     function prevMonth() {
-        setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+        setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
     }
 
     function nextMonth() {
-        setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+        // Don't allow navigating to future months
+        const now = new Date();
+        const next = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+        if (next > new Date(now.getFullYear(), now.getMonth(), 1)) return;
+        setViewDate(next);
     }
 
     function openDay(date: Date) {
@@ -136,6 +142,10 @@ export default function TakvimScreen() {
         return d >= start && d <= end;
     }
 
+    // Don't allow navigating to future months
+    const now = new Date();
+    const isCurrentMonth = viewDate.getFullYear() === now.getFullYear() && viewDate.getMonth() === now.getMonth();
+
     return (
         <ThemedView style={styles.container}>
             <View style={styles.header}>
@@ -143,8 +153,8 @@ export default function TakvimScreen() {
                     <ThemedText>{'<'}</ThemedText>
                 </TouchableOpacity>
                 <ThemedText type="title">{viewDate.toLocaleString('tr-TR', { month: 'long', year: 'numeric' })}</ThemedText>
-                <TouchableOpacity onPress={nextMonth} style={styles.headerButton}>
-                    <ThemedText>{'>'}</ThemedText>
+                <TouchableOpacity onPress={nextMonth} style={styles.headerButton} disabled={isCurrentMonth}>
+                    <ThemedText style={isCurrentMonth ? { color: '#bbb' } : undefined}>{'>'}</ThemedText>
                 </TouchableOpacity>
             </View>
 
@@ -163,43 +173,72 @@ export default function TakvimScreen() {
                             const isToday = item
                                 ? item.toDateString() === new Date().toDateString()
                                 : false;
+                            const isFuture = item ? item > now : false;
                             const dateKey = item ? `${item.getFullYear()}-${String(item.getMonth() + 1).padStart(2, '0')}-${String(item.getDate()).padStart(2, '0')}` : null;
                             const log = dateKey ? logsByDate[dateKey] : null;
                             const completed = item && isCompletedDay(item);
+                            // Determine if all 5 vakits are done for this day
+                            const vakitKeys = ['sabah', 'ogle', 'ikindi', 'aksam', 'yatsi'];
+                            const allDone = vakitKeys.every(k => log && log[k] > 0);
+                            // Yarım çember için açıları ve pozisyonları tanımla
+                            const circlePositions = [
+                                { angle: -90, vakit: 'sabah' },      // üst
+                                { angle: -45, vakit: 'ogle' },       // sağ üst
+                                { angle: 0, vakit: 'ikindi' },       // sağ
+                                { angle: 45, vakit: 'aksam' },       // sağ alt
+                                { angle: 90, vakit: 'yatsi' },       // alt
+                            ];
+                            // Yarıçapı gün hücresinin boyutuna göre ayarla (hücre boyutuna göre dinamik)
+                            const center = cellSize / 2;
+                            const R = Math.max(cellSize * 0.38, 12); // hücreye göre yarıçap
+                            console.log("cellSize, R:", cellSize, R);
                             return (
                                 <TouchableOpacity
                                     key={di}
-                                    style={[styles.dayCell, isToday ? styles.today : undefined]}
-                                    disabled={!item}
-                                    onPress={() => item && openDay(item)}
+                                    style={[styles.dayCell, isToday ? styles.today : undefined, styles.dayCellBorder]}
+                                    disabled={!item || isFuture}
+                                    onPress={() => item && !isFuture && openDay(item)}
+                                    onLayout={e => {
+                                        const size = e.nativeEvent.layout.width;
+                                        if (size && size !== cellSize) setCellSize(size);
+                                    }}
                                 >
-                                    <ThemedText>{item ? String(item.getDate()) : ''}</ThemedText>
-                                    {item && (
-                                        completed ? (
-                                            <View style={[styles.checkContainer, { marginTop: 6 }]}>
+                                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                        {/* Yarım çemberde 5 vakit noktası */}
+                                        {item && !(completed || allDone) && cellSize > 0 && (
+                                            circlePositions.map((pos, idx) => {
+                                                const rad = (Math.PI / 180) * pos.angle;
+                                                const x = Math.cos(rad) * R;
+                                                const y = Math.sin(rad) * R;
+                                                const done = log ? (log[pos.vakit] > 0) : false;
+                                                return (
+                                                    <View
+                                                        key={pos.vakit}
+                                                        style={[
+                                                            styles.prayerDot,
+                                                            styles.prayerDotSmall,
+                                                            done ? styles.prayerDone : styles.prayerMissingNeutral,
+                                                            {
+                                                                position: 'absolute',
+                                                                left: (center / 10) + 3 + x - 3.5, // 3.5 = dot yarıçapı (7/2)
+                                                                top: (center / 1.05) + 1 + y - 3.5,
+                                                            }
+                                                        ]}
+                                                    />
+                                                );
+                                            })
+                                        )}
+                                        {/* Gün numarası */}
+                                        <ThemedText style={{ zIndex: 2, fontWeight: 'bold' }}>{item ? String(item.getDate()) : ''}</ThemedText>
+                                        {/* Tamamlandıysa tik */}
+                                        {item && (completed || allDone) ? (
+                                            <View style={[styles.checkContainer, { marginLeft: 6, position: 'absolute' }]}>
                                                 <View style={{ width: checkSize, height: checkSize, borderRadius: checkSize / 2, backgroundColor: '#34C759', alignItems: 'center', justifyContent: 'center' }}>
                                                     <ThemedText style={{ color: '#fff', fontSize: checkSize * 0.7, fontWeight: 'bold' }}>✓</ThemedText>
                                                 </View>
                                             </View>
-                                        ) : (
-                                            isNarrow ? (
-                                                <View style={styles.compactBadge}>
-                                                    <View style={[styles.compactDot, { width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: '#fff', borderColor: '#bbb' }]} />
-                                                </View>
-                                            ) : (
-                                                <View style={[styles.prayerRow, { flexWrap: 'wrap' }]}>
-                                                    {['sabah', 'ogle', 'ikindi', 'aksam', 'yatsi'].map((k) => {
-                                                        const done = log ? (log[k] > 0) : false;
-                                                        return <View key={k} style={[
-                                                            styles.prayerDot,
-                                                            { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
-                                                            done ? styles.prayerDone : styles.prayerMissingNeutral
-                                                        ]} />;
-                                                    })}
-                                                </View>
-                                            )
-                                        )
-                                    )}
+                                        ) : null}
+                                    </View>
                                 </TouchableOpacity>
                             );
                         })}
@@ -215,47 +254,170 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 16,
         gap: 8,
+        backgroundColor: '#f6f8fa',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        marginBottom: 8,
     },
     headerButton: {
-        padding: 8,
+        padding: 10,
+        borderRadius: 8,
+        backgroundColor: '#e9eef6',
+        marginHorizontal: 2,
     },
     weekRow: {
         flexDirection: 'row',
-        marginTop: 12,
+        marginTop: 8,
+        marginBottom: 2,
     },
     weekCell: {
         flex: 1,
         alignItems: 'center',
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 15,
+        color: '#6b7280',
     },
     dayCell: {
         flex: 1,
         aspectRatio: 1,
         alignItems: 'center',
         justifyContent: 'center',
+        fontFamily: 'Inter',
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        margin: 2,
+        shadowColor: '#000',
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: 1,
+        transitionProperty: 'box-shadow',
+        transitionDuration: '0.2s',
+    },
+    dayCellBorder: {
+        borderWidth: 1.5,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        backgroundColor: '#fff',
     },
     weeksContainer: {
-        marginTop: 8,
+        marginTop: 4,
     },
     weekRowInner: {
         flexDirection: 'row',
     },
     today: {
-        borderWidth: 1,
-        borderColor: '#007AFF',
-        borderRadius: 8,
-        backgroundColor: 'rgba(0,122,255,0.08)'
+        borderWidth: 2,
+        borderColor: '#2563eb',
+        borderRadius: 12,
+        backgroundColor: '#e0e7ff',
+        shadowColor: '#2563eb',
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
     },
-    prayerRow: { flexDirection: 'row', marginTop: 6, gap: 4, justifyContent: 'center', flexWrap: 'wrap' },
-    prayerDot: { borderWidth: 1, borderColor: '#ccc' },
-    prayerDone: { backgroundColor: '#34C759', borderColor: '#2ea84d' },
-    prayerMissing: { backgroundColor: '#fff', borderColor: '#ff3b30' },
-    prayerMissingNeutral: { backgroundColor: 'transparent', borderColor: '#ccc' },
-    compactBadge: { marginTop: 6, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 12, backgroundColor: 'transparent' },
-    compactDot: { borderWidth: 1, borderColor: '#bbb', backgroundColor: '#fff' },
-    checkContainer: { alignItems: 'center', justifyContent: 'center' },
+    prayerRow: {
+        flexDirection: 'row',
+        marginTop: 6,
+        gap: 4,
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+    },
+    prayerCol: {
+        flexDirection: 'column',
+        marginLeft: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+    },
+    dayRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 2,
+    },
+    prayerDot: {
+        borderWidth: 1.5,
+        borderColor: '#d1d5db',
+        marginVertical: 2,
+        backgroundColor: '#f3f4f6',
+    },
+    prayerDone: {
+        backgroundColor: '#4ade80',
+        borderColor: '#22c55e',
+        shadowColor: '#22c55e',
+        shadowOpacity: 0.18,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    prayerMissing: {
+        backgroundColor: '#fff',
+        borderColor: '#e5e7eb',
+    },
+    prayerMissingNeutral: {
+        backgroundColor: '#f3f4f6',
+        borderColor: '#d1d5db',
+    },
+    compactBadge: {
+        marginTop: 6,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 12,
+        backgroundColor: '#f3f4f6',
+    },
+    compactDot: {
+        borderWidth: 1.5,
+        borderColor: '#bbb',
+        backgroundColor: '#fff',
+    },
+    checkContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 2,
+        shadowColor: '#22c55e',
+        shadowOpacity: 0.18,
+        shadowRadius: 4,
+        elevation: 2
+    },
+    prayerDotRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 2
+    },
+    dayCustomRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+    },
+    prayerDotTopRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 2,
+        gap: 2,
+    },
+    prayerDotRightCol: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 4,
+        gap: 2,
+    },
+    prayerDotSmall: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+        marginHorizontal: 1,
+        marginVertical: 0
+    }
 });
