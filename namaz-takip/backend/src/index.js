@@ -7,6 +7,7 @@ const cors = require('cors');
 const crypto = require('crypto');
 
 const User = require('./models/user');
+const PrayerLog = require('./models/prayerLog');
 
 const app = express();
 app.use(helmet());
@@ -107,8 +108,50 @@ app.post('/api/kaza', authMiddleware, async (req, res) => {
         user.kazaTotals.aksam = (user.kazaTotals.aksam || 0) + Number(aksam);
         user.kazaTotals.yatsi = (user.kazaTotals.yatsi || 0) + Number(yatsi);
         await user.save();
-        // for now we don't persist individual records, just aggregated totals
-        return res.json({ ok: true, kazaTotals: user.kazaTotals });
+        // also upsert a PrayerLog for the date (default today)
+        const date = req.body.date || (new Date()).toISOString().slice(0, 10);
+        const update = { $inc: { sabah: Number(sabah), ogle: Number(ogle), ikindi: Number(ikindi), aksam: Number(aksam), yatsi: Number(yatsi) } };
+        if (note) update.$set = { note };
+        const log = await PrayerLog.findOneAndUpdate({ user: user._id, date }, update, { upsert: true, new: true, setDefaultsOnInsert: true });
+        return res.json({ ok: true, kazaTotals: user.kazaTotals, log });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ message: 'server error' });
+    }
+});
+
+// GET prayer logs for a date range (inclusive)
+app.get('/api/prayer-logs', authMiddleware, async (req, res) => {
+    try {
+        const { start, end } = req.query;
+        if (!start || !end) return res.status(400).json({ message: 'start and end query params required' });
+        const logs = await PrayerLog.find({ user: req.user._id, date: { $gte: String(start), $lte: String(end) } }).lean();
+        return res.json({ ok: true, logs });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ message: 'server error' });
+    }
+});
+
+// Upsert a prayer log for a specific date (set exact counts / flags)
+app.post('/api/prayer-log', authMiddleware, async (req, res) => {
+    try {
+        const { date, sabah = 0, ogle = 0, ikindi = 0, aksam = 0, yatsi = 0, vitr = 0, note } = req.body;
+        if (!date) return res.status(400).json({ message: 'date is required (YYYY-MM-DD)' });
+        const user = req.user;
+        const update = {
+            $set: {
+                sabah: Number(sabah),
+                ogle: Number(ogle),
+                ikindi: Number(ikindi),
+                aksam: Number(aksam),
+                yatsi: Number(yatsi),
+                vitr: Number(vitr || 0),
+            }
+        };
+        if (note) update.$set.note = note;
+        const log = await PrayerLog.findOneAndUpdate({ user: user._id, date }, update, { upsert: true, new: true, setDefaultsOnInsert: true });
+        return res.json({ ok: true, log });
     } catch (e) {
         console.error(e);
         return res.status(500).json({ message: 'server error' });

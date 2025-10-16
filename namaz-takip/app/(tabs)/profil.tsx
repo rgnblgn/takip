@@ -83,9 +83,6 @@ export default function ProfilScreen() {
                         <ThemedText style={styles.btnPrimaryText}>Giriş Yap</ThemedText>
                     </TouchableOpacity>
                 ) : null}
-                <TouchableOpacity onPress={() => router.push('/signup')} style={styles.btnSecondary}>
-                    <ThemedText style={styles.btnSecondaryText}>Kayıt Ol</ThemedText>
-                </TouchableOpacity>
             </View>
 
             <ThemedText style={styles.label}>Bu mükellef olduğun gün</ThemedText>

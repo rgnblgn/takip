@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -34,7 +34,62 @@ export default function GunDetayScreen() {
     const [yatsi, setYatsi] = useState(false);
     const [vitr, setVitr] = useState(false);
 
+    // load prayer log for date
+    useEffect(() => {
+        let mounted = true;
+        async function load() {
+            if (!dateStr) return;
+            try {
+                const token = (await import('../utils/auth')).getToken();
+                const t = await token;
+                const headers: any = { 'content-type': 'application/json' };
+                if (t) headers.Authorization = `Bearer ${t}`;
+                const res = await fetch(`http://localhost:4000/api/prayer-logs?start=${dateStr}&end=${dateStr}`, { headers });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!mounted) return;
+                const log = (data.logs && data.logs[0]) || null;
+                if (log) {
+                    setSab(Boolean(log.sabah));
+                    setOgle(Boolean(log.ogle));
+                    setIkindi(Boolean(log.ikindi));
+                    setAksam(Boolean(log.aksam));
+                    setYatsi(Boolean(log.yatsi));
+                    setVitr(Boolean(log.vitr));
+                } else {
+                    // clear previous day's state when no log exists for this date
+                    setSab(false);
+                    setOgle(false);
+                    setIkindi(false);
+                    setAksam(false);
+                    setYatsi(false);
+                    setVitr(false);
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+        load();
+        return () => { mounted = false; };
+    }, [dateStr]);
+
     const allFarzDone = useMemo(() => sab && ogle && ikindi && aksam && yatsi, [sab, ogle, ikindi, aksam, yatsi]);
+
+    // helper: persist given values for this date (explicit payload avoids state race)
+    async function saveForDate(d: string, vals: { sabah?: number; ogle?: number; ikindi?: number; aksam?: number; yatsi?: number; vitr?: number }) {
+        if (!d) return;
+        try {
+            const token = (await import('../utils/auth')).getToken();
+            const t = await token;
+            const headers: any = { 'content-type': 'application/json' };
+            if (t) headers.Authorization = `Bearer ${t}`;
+            await fetch('http://localhost:4000/api/prayer-log', {
+                method: 'POST', headers, body: JSON.stringify({ date: d, ...vals })
+            });
+        } catch (e) {
+            // ignore
+        }
+    }
 
     return (
         <ThemedView style={styles.container}>
@@ -48,12 +103,12 @@ export default function GunDetayScreen() {
             <ThemedText type="subtitle">{display}</ThemedText>
 
             <View style={styles.checkList}>
-                <PrayRow label="Sabah" value={sab} onToggle={() => setSab(s => !s)} />
-                <PrayRow label="Öğle" value={ogle} onToggle={() => setOgle(s => !s)} />
-                <PrayRow label="İkindi" value={ikindi} onToggle={() => setIkindi(s => !s)} />
-                <PrayRow label="Akşam" value={aksam} onToggle={() => setAksam(s => !s)} />
-                <PrayRow label="Yatsı" value={yatsi} onToggle={() => setYatsi(s => !s)} />
-                <PrayRow label="Vitr" value={vitr} onToggle={() => setVitr(s => !s)} />
+                <PrayRow label="Sabah" value={sab} onToggle={async () => { const nv = !sab; setSab(nv); await saveForDate(dateStr, { sabah: nv ? 1 : 0, ogle: ogle ? 1 : 0, ikindi: ikindi ? 1 : 0, aksam: aksam ? 1 : 0, yatsi: yatsi ? 1 : 0, vitr: vitr ? 1 : 0 }); }} />
+                <PrayRow label="Öğle" value={ogle} onToggle={async () => { const nv = !ogle; setOgle(nv); await saveForDate(dateStr, { sabah: sab ? 1 : 0, ogle: nv ? 1 : 0, ikindi: ikindi ? 1 : 0, aksam: aksam ? 1 : 0, yatsi: yatsi ? 1 : 0, vitr: vitr ? 1 : 0 }); }} />
+                <PrayRow label="İkindi" value={ikindi} onToggle={async () => { const nv = !ikindi; setIkindi(nv); await saveForDate(dateStr, { sabah: sab ? 1 : 0, ogle: ogle ? 1 : 0, ikindi: nv ? 1 : 0, aksam: aksam ? 1 : 0, yatsi: yatsi ? 1 : 0, vitr: vitr ? 1 : 0 }); }} />
+                <PrayRow label="Akşam" value={aksam} onToggle={async () => { const nv = !aksam; setAksam(nv); await saveForDate(dateStr, { sabah: sab ? 1 : 0, ogle: ogle ? 1 : 0, ikindi: ikindi ? 1 : 0, aksam: nv ? 1 : 0, yatsi: yatsi ? 1 : 0, vitr: vitr ? 1 : 0 }); }} />
+                <PrayRow label="Yatsı" value={yatsi} onToggle={async () => { const nv = !yatsi; setYatsi(nv); await saveForDate(dateStr, { sabah: sab ? 1 : 0, ogle: ogle ? 1 : 0, ikindi: ikindi ? 1 : 0, aksam: aksam ? 1 : 0, yatsi: nv ? 1 : 0, vitr: vitr ? 1 : 0 }); }} />
+                <PrayRow label="Vitr" value={vitr} onToggle={async () => { const nv = !vitr; setVitr(nv); await saveForDate(dateStr, { sabah: sab ? 1 : 0, ogle: ogle ? 1 : 0, ikindi: ikindi ? 1 : 0, aksam: aksam ? 1 : 0, yatsi: yatsi ? 1 : 0, vitr: nv ? 1 : 0 }); }} />
             </View>
 
             {allFarzDone ? (
